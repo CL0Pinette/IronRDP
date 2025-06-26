@@ -7,7 +7,7 @@ use super::clipboard::CliprdrServerFactory;
 use super::display::{DesktopSize, RdpServerDisplay};
 use super::handler::{KeyboardEvent, MouseEvent, RdpServerInputHandler};
 use super::server::*;
-use crate::{DisplayUpdate, RdpServerDisplayUpdates, SoundServerFactory};
+use crate::{DisplayUpdate, RdpServerAcceptedUserHandler, RdpServerDisplayUpdates, SoundServerFactory};
 
 pub struct WantsAddr {}
 pub struct WantsSecurity {
@@ -22,12 +22,19 @@ pub struct WantsDisplay {
     security: RdpServerSecurity,
     handler: Box<dyn RdpServerInputHandler>,
 }
+pub struct WantsAcceptedUserHandler {
+    addr: SocketAddr,
+    security: RdpServerSecurity,
+    handler: Box<dyn RdpServerInputHandler>,
+    display: Box<dyn RdpServerDisplay>,
+}
 pub struct BuilderDone {
     addr: SocketAddr,
     security: RdpServerSecurity,
     with_remote_fx: bool,
     handler: Box<dyn RdpServerInputHandler>,
     display: Box<dyn RdpServerDisplay>,
+    user_handler: Box<dyn RdpServerAcceptedUserHandler>,
     cliprdr_factory: Option<Box<dyn CliprdrServerFactory>>,
     sound_factory: Option<Box<dyn SoundServerFactory>>,
 }
@@ -112,33 +119,62 @@ impl RdpServerBuilder<WantsHandler> {
 }
 
 impl RdpServerBuilder<WantsDisplay> {
-    pub fn with_display_handler<D>(self, display: D) -> RdpServerBuilder<BuilderDone>
+    pub fn with_display_handler<D>(self, display: D) -> RdpServerBuilder<WantsAcceptedUserHandler>
     where
         D: RdpServerDisplay + 'static,
+    {
+        RdpServerBuilder {
+            state: WantsAcceptedUserHandler {
+                addr: self.state.addr,
+                security: self.state.security,
+                handler: self.state.handler,
+                display: Box::new(display),
+            },
+        }
+    }
+
+    pub fn with_no_display(self) -> RdpServerBuilder<WantsAcceptedUserHandler> {
+        RdpServerBuilder {
+            state: WantsAcceptedUserHandler {
+                addr: self.state.addr,
+                security: self.state.security,
+                handler: self.state.handler,
+                display: Box::new(NoopDisplay),
+            },
+        }
+    }
+}
+
+impl RdpServerBuilder<WantsAcceptedUserHandler> {
+    pub fn with_accepted_user_handler<D>(self, user_handler: D) -> RdpServerBuilder<BuilderDone>
+    where
+        D: RdpServerAcceptedUserHandler + 'static,
     {
         RdpServerBuilder {
             state: BuilderDone {
                 addr: self.state.addr,
                 security: self.state.security,
                 handler: self.state.handler,
-                display: Box::new(display),
+                display: self.state.display,
                 sound_factory: None,
                 cliprdr_factory: None,
                 with_remote_fx: true,
+                user_handler: Box::new(user_handler),
             },
         }
     }
 
-    pub fn with_no_display(self) -> RdpServerBuilder<BuilderDone> {
+    pub fn with_no_accepted_user(self) -> RdpServerBuilder<BuilderDone> {
         RdpServerBuilder {
             state: BuilderDone {
                 addr: self.state.addr,
                 security: self.state.security,
                 handler: self.state.handler,
-                display: Box::new(NoopDisplay),
+                display: self.state.display,
                 sound_factory: None,
                 cliprdr_factory: None,
                 with_remote_fx: true,
+                user_handler: Box::new(NoopAcceptedUser),
             },
         }
     }
@@ -169,6 +205,7 @@ impl RdpServerBuilder<BuilderDone> {
             },
             self.state.handler,
             self.state.display,
+            self.state.user_handler,
             self.state.sound_factory,
             self.state.cliprdr_factory,
         )
@@ -203,4 +240,10 @@ impl RdpServerDisplay for NoopDisplay {
     async fn updates(&mut self) -> Result<Box<dyn RdpServerDisplayUpdates>> {
         Ok(Box::new(NoopDisplayUpdates {}))
     }
+}
+
+struct NoopAcceptedUser;
+#[async_trait::async_trait]
+impl RdpServerAcceptedUserHandler for NoopAcceptedUser {
+    fn accepted_user(&mut self, _: String) {}
 }

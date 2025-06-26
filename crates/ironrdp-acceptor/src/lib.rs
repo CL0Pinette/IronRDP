@@ -8,7 +8,7 @@ use ironrdp_async::{single_sequence_step, Framed, FramedRead, FramedWrite, Strea
 use ironrdp_connector::credssp::KerberosConfig;
 use ironrdp_connector::sspi::credssp::EarlyUserAuthResult;
 use ironrdp_connector::sspi::{AuthIdentity, Username};
-use ironrdp_connector::{custom_err, general_err, ConnectorResult, ServerName};
+use ironrdp_connector::{ConnectorResult, ServerName};
 use ironrdp_core::WriteBuf;
 
 mod channel_connection;

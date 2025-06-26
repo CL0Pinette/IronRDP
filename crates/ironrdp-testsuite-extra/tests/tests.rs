@@ -177,12 +177,13 @@ where
         .with_display_handler(TestDisplay {
             rx: Arc::new(Mutex::new(display_rx)),
         })
+        .with_no_accepted_user()
         .build();
-    server.set_credentials(Some(server::Credentials {
+    server.add_credentials(server::Credentials {
         username: USERNAME.into(),
         password: PASSWORD.into(),
         domain: None,
-    }));
+    });
     let ev = server.event_sender().clone();
 
     let local = tokio::task::LocalSet::new();

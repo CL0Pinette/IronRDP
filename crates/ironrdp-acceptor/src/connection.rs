@@ -34,6 +34,7 @@ pub struct Acceptor {
     saved_for_reactivation: AcceptorState,
     pub(crate) creds: Vec<Credentials>,
     reactivation: bool,
+    username: Option<String>,
 }
 
 #[derive(Debug)]
@@ -44,6 +45,7 @@ pub struct AcceptorResult {
     pub user_channel_id: u16,
     pub io_channel_id: u16,
     pub reactivation: bool,
+    pub username: Option<String>,
 }
 
 impl Acceptor {
@@ -64,6 +66,7 @@ impl Acceptor {
             saved_for_reactivation: Default::default(),
             creds,
             reactivation: false,
+            username: None,
         }
     }
 
@@ -105,6 +108,7 @@ impl Acceptor {
             saved_for_reactivation,
             creds: consumed.creds,
             reactivation: true,
+            username: consumed.username,
         }
     }
 
@@ -152,6 +156,7 @@ impl Acceptor {
                 user_channel_id: self.user_channel_id,
                 io_channel_id: self.io_channel_id,
                 reactivation: self.reactivation,
+                username: self.username.clone(),
             }),
             previous_state => {
                 self.state = previous_state;
@@ -536,6 +541,8 @@ impl Sequence for Acceptor {
                     for cred in self.creds.iter() {
                         if cred == &creds {
                             auth_ok = true;
+                            let client_username = creds.username.clone();
+                            self.username = Some(client_username);
                         }
                     }
 

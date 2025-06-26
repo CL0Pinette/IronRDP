@@ -418,6 +418,7 @@ async fn run(
     let mut server = server_builder
         .with_input_handler(handler.clone())
         .with_display_handler(handler.clone())
+        .with_no_accepted_user()
         .with_cliprdr_factory(Some(cliprdr))
         .with_sound_factory(Some(sound))
         .build();

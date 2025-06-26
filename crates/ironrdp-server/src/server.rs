@@ -31,7 +31,7 @@ use {ironrdp_dvc as dvc, ironrdp_rdpsnd as rdpsnd};
 use crate::clipboard::CliprdrServerFactory;
 use crate::display::{DisplayUpdate, RdpServerDisplay};
 use crate::encoder::{UpdateEncoder, UpdateEncoderCodecs};
-use crate::handler::RdpServerInputHandler;
+use crate::handler::{RdpServerAcceptedUserHandler, RdpServerInputHandler};
 use crate::{builder, capabilities, SoundServerFactory};
 
 #[derive(Clone)]
@@ -180,6 +180,7 @@ pub struct RdpServer {
     // FIXME: replace with a channel and poll/process the handler?
     handler: Arc<Mutex<Box<dyn RdpServerInputHandler>>>,
     display: Arc<Mutex<Box<dyn RdpServerDisplay>>>,
+    accepted_user_handler: Arc<Mutex<Box<dyn RdpServerAcceptedUserHandler>>>,
     static_channels: StaticChannelSet,
     sound_factory: Option<Box<dyn SoundServerFactory>>,
     cliprdr_factory: Option<Box<dyn CliprdrServerFactory>>,
@@ -187,6 +188,7 @@ pub struct RdpServer {
     ev_receiver: Arc<Mutex<mpsc::UnboundedReceiver<ServerEvent>>>,
     creds: Vec<Credentials>,
     local_addr: Option<SocketAddr>,
+    username: String,
 }
 
 #[derive(Debug)]
@@ -221,6 +223,7 @@ impl RdpServer {
         opts: RdpServerOptions,
         handler: Box<dyn RdpServerInputHandler>,
         display: Box<dyn RdpServerDisplay>,
+        accepted_user_handler: Box<dyn RdpServerAcceptedUserHandler>,
         mut sound_factory: Option<Box<dyn SoundServerFactory>>,
         mut cliprdr_factory: Option<Box<dyn CliprdrServerFactory>>,
     ) -> Self {
@@ -235,6 +238,7 @@ impl RdpServer {
             opts,
             handler: Arc::new(Mutex::new(handler)),
             display: Arc::new(Mutex::new(display)),
+            accepted_user_handler: Arc::new(Mutex::new(accepted_user_handler)),
             static_channels: StaticChannelSet::new(),
             sound_factory,
             cliprdr_factory,
@@ -242,6 +246,7 @@ impl RdpServer {
             ev_receiver: Arc::new(Mutex::new(ev_receiver)),
             creds: vec![],
             local_addr: None,
+            username: "".to_string(),
         }
     }
 
@@ -921,6 +926,12 @@ impl RdpServer {
 
             let (mut reader, mut writer) = split_tokio_framed(new_framed);
 
+            self.username = result.username.clone().unwrap();
+
+            self.accepted_user_handler
+                .lock()
+                .await
+                .accepted_user(self.username.clone());
             match self.client_accepted(&mut reader, &mut writer, result).await? {
                 RunState::Continue => {
                     unreachable!();
