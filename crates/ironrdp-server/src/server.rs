@@ -185,7 +185,7 @@ pub struct RdpServer {
     cliprdr_factory: Option<Box<dyn CliprdrServerFactory>>,
     ev_sender: mpsc::UnboundedSender<ServerEvent>,
     ev_receiver: Arc<Mutex<mpsc::UnboundedReceiver<ServerEvent>>>,
-    creds: Option<Credentials>,
+    creds: Vec<Credentials>,
     local_addr: Option<SocketAddr>,
 }
 
@@ -194,7 +194,8 @@ pub enum ServerEvent {
     Quit(String),
     Clipboard(ClipboardMessage),
     Rdpsnd(RdpsndServerMessage),
-    SetCredentials(Credentials),
+    AddCredentials(Credentials),
+    RemoveCredentials(Credentials),
     GetLocalAddr(oneshot::Sender<Option<SocketAddr>>),
 }
 
@@ -239,7 +240,7 @@ impl RdpServer {
             cliprdr_factory,
             ev_sender,
             ev_receiver: Arc::new(Mutex::new(ev_receiver)),
-            creds: None,
+            creds: vec![],
             local_addr: None,
         }
     }
@@ -353,8 +354,11 @@ impl RdpServer {
                         ServerEvent::GetLocalAddr(tx) => {
                             let _ = tx.send(self.local_addr);
                         }
-                        ServerEvent::SetCredentials(creds) => {
-                            self.set_credentials(Some(creds));
+                        ServerEvent::AddCredentials(creds) => {
+                            self.add_credentials(creds);
+                        }
+                        ServerEvent::RemoveCredentials(creds) => {
+                            self.remove_credentials(creds);
                         }
                         ev => {
                             debug!("Unexpected event {:?}", ev);
@@ -472,8 +476,11 @@ impl RdpServer {
                 ServerEvent::GetLocalAddr(tx) => {
                     let _ = tx.send(self.local_addr);
                 }
-                ServerEvent::SetCredentials(creds) => {
-                    self.set_credentials(Some(creds));
+                ServerEvent::AddCredentials(creds) => {
+                    self.add_credentials(creds);
+                }
+                ServerEvent::RemoveCredentials(creds) => {
+                    self.add_credentials(creds);
                 }
                 ServerEvent::Rdpsnd(s) => {
                     let Some(rdpsnd) = self.get_svc_processor::<RdpsndServer>() else {
@@ -938,9 +945,15 @@ impl RdpServer {
         Ok(())
     }
 
-    pub fn set_credentials(&mut self, creds: Option<Credentials>) {
+    pub fn add_credentials(&mut self, creds: Credentials) {
         debug!(?creds, "Changing credentials");
-        self.creds = creds
+        self.creds.push(creds);
+    }
+
+    pub fn remove_credentials(&mut self, creds: Credentials) {
+        debug!(?creds, "Changing credentials");
+        self.creds
+            .retain(|cred| cred.username != creds.username && cred.password != creds.password);
     }
 }
 

@@ -125,18 +125,20 @@ where
     where
         S: FramedRead + FramedWrite,
     {
-        let creds = acceptor
+        if acceptor.creds.len() == 0 {
+            panic!("no credentials while doing credssp");
+        }
+        let identities: Vec<AuthIdentity> = acceptor
             .creds
-            .as_ref()
-            .ok_or_else(|| general_err!("no credentials while doing credssp"))?;
-        let username = Username::new(&creds.username, None).map_err(|e| custom_err!("invalid username", e))?;
-        let identity = AuthIdentity {
-            username,
-            password: creds.password.clone().into(),
-        };
+            .iter()
+            .map(|cred| AuthIdentity {
+                username: Username::new(&cred.username, None).unwrap(),
+                password: cred.password.clone().into(),
+            })
+            .collect();
 
         let mut sequence =
-            credssp::CredsspSequence::init(&identity, client_computer_name, public_key, kerberos_config)?;
+            credssp::CredsspSequence::init(&identities, client_computer_name, public_key, kerberos_config)?;
 
         loop {
             let Some(next_pdu_hint) = sequence.next_pdu_hint()? else {

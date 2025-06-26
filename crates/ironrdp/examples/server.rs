@@ -422,11 +422,11 @@ async fn run(
         .with_sound_factory(Some(sound))
         .build();
 
-    server.set_credentials(Some(Credentials {
+    server.add_credentials(Credentials {
         username,
         password,
         domain: None,
-    }));
+    });
 
     server.run().await
 }

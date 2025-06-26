@@ -40,11 +40,11 @@ pub struct CredsspSequence<'a> {
 
 #[derive(Debug)]
 struct CredentialsProxyImpl<'a> {
-    credentials: &'a AuthIdentity,
+    credentials: &'a Vec<AuthIdentity>,
 }
 
 impl<'a> CredentialsProxyImpl<'a> {
-    fn new(credentials: &'a AuthIdentity) -> Self {
+    fn new(credentials: &'a Vec<AuthIdentity>) -> Self {
         Self { credentials }
     }
 }
@@ -53,14 +53,15 @@ impl CredentialsProxy for CredentialsProxyImpl<'_> {
     type AuthenticationData = AuthIdentity;
 
     fn auth_data_by_user(&mut self, username: &Username) -> std::io::Result<Self::AuthenticationData> {
-        if username.account_name() != self.credentials.username.account_name() {
-            return Err(std::io::Error::other("invalid username"));
+        for cred in self.credentials {
+            if username.account_name() == cred.username.account_name() {
+                let mut data = cred.clone();
+                // keep the original user/domain
+                data.username = username.clone();
+                return Ok(data);
+            }
         }
-
-        let mut data = self.credentials.clone();
-        // keep the original user/domain
-        data.username = username.clone();
-        Ok(data)
+        return Err(std::io::Error::other("invalid username"));
     }
 }
 
@@ -74,7 +75,7 @@ impl<'a> CredsspSequence<'a> {
     }
 
     pub fn init(
-        creds: &'a AuthIdentity,
+        creds: &'a Vec<AuthIdentity>,
         client_computer_name: ServerName,
         public_key: Vec<u8>,
         kerberos_config: Option<KerberosConfig>,
