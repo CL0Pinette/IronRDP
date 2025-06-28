@@ -177,7 +177,6 @@ where
         .with_display_handler(TestDisplay {
             rx: Arc::new(Mutex::new(display_rx)),
         })
-        .with_no_accepted_user()
         .build();
     server.add_credentials(server::Credentials {
         username: USERNAME.into(),
