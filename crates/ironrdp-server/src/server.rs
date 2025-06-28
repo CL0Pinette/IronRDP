@@ -182,13 +182,14 @@ pub struct RdpServer {
     display: Arc<Mutex<Box<dyn RdpServerDisplay>>>,
     static_channels: StaticChannelSet,
     accepted_user_handler: Option<Box<dyn RdpServerAcceptedUserHandler>>,
+    authentication_handler: Option<Arc<dyn RdpAcceptorAuthenticationHandler + Sync + Send + 'static>>,
     sound_factory: Option<Box<dyn SoundServerFactory>>,
     cliprdr_factory: Option<Box<dyn CliprdrServerFactory>>,
     ev_sender: mpsc::UnboundedSender<ServerEvent>,
     ev_receiver: Arc<Mutex<mpsc::UnboundedReceiver<ServerEvent>>>,
     creds: Vec<Credentials>,
     local_addr: Option<SocketAddr>,
-    username: String,
+    username: Option<String>,
 }
 
 #[derive(Debug)]
@@ -246,7 +247,7 @@ impl RdpServer {
             ev_receiver: Arc::new(Mutex::new(ev_receiver)),
             creds: vec![],
             local_addr: None,
-            username: "".to_string(),
+            username: None,
         }
     }
 
