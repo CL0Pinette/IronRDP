@@ -33,6 +33,7 @@ use crate::display::{DisplayUpdate, RdpServerDisplay};
 use crate::encoder::{UpdateEncoder, UpdateEncoderCodecs};
 use crate::handler::{RdpServerAcceptedUserHandler, RdpServerInputHandler};
 use crate::{builder, capabilities, SoundServerFactory};
+use ironrdp_acceptor::handler::RdpAcceptorAuthenticationHandler;
 
 #[derive(Clone)]
 pub struct RdpServerOptions {
@@ -225,6 +226,7 @@ impl RdpServer {
         handler: Box<dyn RdpServerInputHandler>,
         display: Box<dyn RdpServerDisplay>,
         accepted_user_handler: Option<Box<dyn RdpServerAcceptedUserHandler>>,
+        authentication_handler: Option<Arc<dyn RdpAcceptorAuthenticationHandler + Sync + Send + 'static>>,
         mut sound_factory: Option<Box<dyn SoundServerFactory>>,
         mut cliprdr_factory: Option<Box<dyn CliprdrServerFactory>>,
     ) -> Self {
@@ -240,6 +242,7 @@ impl RdpServer {
             handler: Arc::new(Mutex::new(handler)),
             display: Arc::new(Mutex::new(display)),
             accepted_user_handler,
+            authentication_handler,
             static_channels: StaticChannelSet::new(),
             sound_factory,
             cliprdr_factory,
@@ -288,7 +291,13 @@ impl RdpServer {
 
         let size = self.display.lock().await.size().await;
         let capabilities = capabilities::capabilities(&self.opts, size);
-        let mut acceptor = Acceptor::new(self.opts.security.flag(), size, capabilities, self.creds.clone());
+        let mut acceptor = Acceptor::new(
+            self.opts.security.flag(),
+            size,
+            capabilities,
+            self.creds.clone(),
+            self.authentication_handler.clone(),
+        );
 
         self.attach_channels(&mut acceptor);
 

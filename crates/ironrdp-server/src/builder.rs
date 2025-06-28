@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use anyhow::Result;
 use tokio_rustls::TlsAcceptor;
@@ -8,6 +9,7 @@ use super::display::{DesktopSize, RdpServerDisplay};
 use super::handler::{KeyboardEvent, MouseEvent, RdpServerInputHandler};
 use super::server::*;
 use crate::{DisplayUpdate, RdpServerAcceptedUserHandler, RdpServerDisplayUpdates, SoundServerFactory};
+use ironrdp_acceptor::handler::RdpAcceptorAuthenticationHandler;
 
 pub struct WantsAddr {}
 pub struct WantsSecurity {
@@ -30,6 +32,7 @@ pub struct BuilderDone {
     handler: Box<dyn RdpServerInputHandler>,
     display: Box<dyn RdpServerDisplay>,
     accepted_user_handler: Option<Box<dyn RdpServerAcceptedUserHandler>>,
+    authentication_handler: Option<Arc<dyn RdpAcceptorAuthenticationHandler + Sync + Send + 'static>>,
     cliprdr_factory: Option<Box<dyn CliprdrServerFactory>>,
     sound_factory: Option<Box<dyn SoundServerFactory>>,
 }
@@ -128,6 +131,7 @@ impl RdpServerBuilder<WantsDisplay> {
                 cliprdr_factory: None,
                 with_remote_fx: true,
                 accepted_user_handler: None,
+                authentication_handler: None,
             },
         }
     }
@@ -143,6 +147,7 @@ impl RdpServerBuilder<WantsDisplay> {
                 cliprdr_factory: None,
                 with_remote_fx: true,
                 accepted_user_handler: None,
+                authentication_handler: None,
             },
         }
     }
@@ -172,6 +177,14 @@ impl RdpServerBuilder<BuilderDone> {
         self
     }
 
+    pub fn with_custom_authentication(
+        mut self,
+        authentication_method: Option<Arc<dyn RdpAcceptorAuthenticationHandler + Sync + Send + 'static>>,
+    ) -> Self {
+        self.state.authentication_handler = authentication_method;
+        self
+    }
+
     pub fn build(self) -> RdpServer {
         RdpServer::new(
             RdpServerOptions {
@@ -182,6 +195,7 @@ impl RdpServerBuilder<BuilderDone> {
             self.state.handler,
             self.state.display,
             self.state.accepted_user_handler,
+            self.state.authentication_handler,
             self.state.sound_factory,
             self.state.cliprdr_factory,
         )

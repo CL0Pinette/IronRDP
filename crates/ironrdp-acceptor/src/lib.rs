@@ -15,6 +15,7 @@ mod channel_connection;
 mod connection;
 pub mod credssp;
 mod finalization;
+pub mod handler;
 mod util;
 
 pub use ironrdp_connector::DesktopSize;

@@ -1,4 +1,5 @@
 use core::mem;
+use std::sync::Arc;
 
 use ironrdp_connector::{
     encode_x224_packet, reason_err, ConnectorError, ConnectorErrorExt, ConnectorResult, DesktopSize, Sequence, State,
@@ -18,6 +19,7 @@ use pdu::{gcc, mcs, nego, rdp};
 
 use super::channel_connection::ChannelConnectionSequence;
 use super::finalization::FinalizationSequence;
+use crate::handler::RdpAcceptorAuthenticationHandler;
 use crate::util::{self, wrap_share_data};
 
 const IO_CHANNEL_ID: u16 = 1003;
@@ -35,6 +37,7 @@ pub struct Acceptor {
     pub(crate) creds: Vec<Credentials>,
     reactivation: bool,
     username: Option<String>,
+    authentication_handler: Option<Arc<dyn RdpAcceptorAuthenticationHandler + Sync + Send + 'static>>,
 }
 
 #[derive(Debug)]
@@ -54,6 +57,7 @@ impl Acceptor {
         desktop_size: DesktopSize,
         capabilities: Vec<CapabilitySet>,
         creds: Vec<Credentials>,
+        authentication_handler: Option<Arc<dyn RdpAcceptorAuthenticationHandler + Sync + Send + 'static>>,
     ) -> Self {
         Self {
             security,
@@ -65,6 +69,7 @@ impl Acceptor {
             static_channels: StaticChannelSet::new(),
             saved_for_reactivation: Default::default(),
             creds,
+            authentication_handler,
             reactivation: false,
             username: None,
         }
@@ -107,6 +112,7 @@ impl Acceptor {
             static_channels,
             saved_for_reactivation,
             creds: consumed.creds,
+            authentication_handler: consumed.authentication_handler,
             reactivation: true,
             username: consumed.username,
         }
@@ -539,10 +545,18 @@ impl Sequence for Acceptor {
                     let mut auth_ok = false;
 
                     for cred in self.creds.iter() {
-                        if cred == &creds {
-                            auth_ok = true;
+                        if let Some(authentication_handler) = self.authentication_handler.as_mut() {
                             let client_username = creds.username.clone();
-                            self.username = Some(client_username);
+                            if authentication_handler.authenticate(client_username.clone(), creds.password.clone()) {
+                                auth_ok = true;
+                                self.username = Some(client_username.clone());
+                            }
+                        } else {
+                            if cred == &creds {
+                                auth_ok = true;
+                                let client_username = creds.username.clone();
+                                self.username = Some(client_username);
+                            }
                         }
                     }
 
